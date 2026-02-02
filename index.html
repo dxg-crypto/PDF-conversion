@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF to Google Slides Converter (Editable Pro)</title>
+    <title>PDF to Google Slides Converter (Editable Pro v3)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,8 +11,8 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- PDF.js (jsDelivr版に変更) -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 
     <!-- PptxGenJS -->
     <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
@@ -50,7 +50,7 @@
                 <div class="bg-yellow-400 text-white p-2 rounded-lg">
                     <i class="fa-solid fa-file-pen text-xl"></i>
                 </div>
-                <h1 class="text-xl font-bold text-gray-800 ml-2">PDF to Slides (Editable Pro)</h1>
+                <h1 class="text-xl font-bold text-gray-800 ml-2">PDF to Slides (Editable Pro v3)</h1>
             </div>
             <a href="https://github.com" target="_blank" class="text-gray-500 hover:text-gray-900">
                 <i class="fa-brands fa-github text-2xl"></i>
@@ -82,7 +82,7 @@
                     <h3 class="text-xl font-bold text-gray-700">ここにPDFをドラッグ＆ドロップ</h3>
                     <p class="text-gray-500 mt-2">またはクリックしてファイルを選択</p>
                 </div>
-                <p class="text-xs text-gray-400">最大 50MB まで • スマートテキスト結合モード搭載</p>
+                <p class="text-xs text-gray-400">最大 50MB まで • 日本語フォント対応強化版</p>
             </div>
         </label>
 
@@ -139,9 +139,10 @@
     </footer>
 
     <script>
-        // PDF.jsのワーカー設定をグローバルスコープで確実に実行
+        // PDF.jsのワーカー設定 (jsDelivrを使用)
+        // ここでのバージョンはHTMLヘッダーで読み込んだものと一致させる必要があります
         if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -164,7 +165,7 @@
 
             // Check PDF.js availability
             if (typeof pdfjsLib === 'undefined') {
-                alert('エラー: PDF解析ライブラリが読み込めませんでした。広告ブロッカー等が干渉している可能性があります。');
+                alert('エラー: PDF解析ライブラリが読み込めませんでした。ネットワーク接続を確認してください。');
                 return;
             }
 
@@ -207,19 +208,22 @@
                 try {
                     const arrayBuffer = await file.arrayBuffer();
                     
-                    // 【修正点】日本語フォント(CMap)の設定を追加
-                    // これがないと日本語を含むPDFの読み込みで止まることがあります
-                    pdfDoc = await pdfjsLib.getDocument({ 
+                    // 【修正点】日本語フォント(CMap)のURLをjsDelivrに変更
+                    // cdnjsだとディレクトリ構造の問題で読み込めないことがあるため
+                    const loadingTask = pdfjsLib.getDocument({ 
                         data: arrayBuffer,
-                        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
                         cMapPacked: true,
-                    }).promise;
+                        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
+                    });
+
+                    pdfDoc = await loadingTask.promise;
                     
                     pageCountLabel.textContent = `${pdfDoc.numPages} ページ`;
                     await processPages();
                 } catch (err) {
                     console.error('PDF Read Error:', err);
-                    alert(`PDFの読み込みに失敗しました。\n\n詳細: ${err.message}\n\n・パスワードがかかっている\n・ファイルが破損している\n・ブラウザの拡張機能が干渉している\n可能性があります。`);
+                    alert(`PDFの読み込みに失敗しました。\n\nエラー内容: ${err.message}\n\n対策:\n1. 別のPDFで試してみてください。\n2. パスワード保護されていないか確認してください。\n3. ネットワーク接続を確認してください（フォント解析のため通信が必要です）。`);
                     statusText.textContent = 'エラーが発生しました';
                     isProcessing = false;
                 }
