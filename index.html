@@ -72,7 +72,7 @@
             <h2 class="text-3xl font-bold text-gray-900">画像PDFも<span class="text-green-600">AI文字認識</span>で編集可能に</h2>
             <p class="text-gray-600">
                 スキャンしたPDFなどの「画像データ」に含まれる文字をAIが読み取ります。<br>
-                読み取った文字をテキストボックスとして配置し、編集できるように変換します。
+                文字の上にテキストボックスを重ねることで、元の文字を隠して編集できるようにします。
             </p>
         </div>
 
@@ -146,8 +146,8 @@
             <!-- Actions -->
             <div class="flex justify-end pt-4 border-t border-gray-100 items-center gap-4">
                 <div class="text-xs text-gray-400 text-right">
-                    ※OCR結果の精度は100%ではありません。<br>
-                    ※白い背景のテキストボックスで上書き配置します。
+                    ※OCR結果で元の文字を白く塗りつぶして配置します。<br>
+                    ※文字サイズは自動調整されます。
                 </div>
                 <button id="download-btn" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <div id="btn-spinner" class="loader w-5 h-5 rounded-full border-2 border-white border-t-transparent hidden"></div>
@@ -340,8 +340,21 @@
                             log(`Page ${pageNum}: テキストデータ抽出中...`);
                             const viewportScale1 = page.getViewport({ scale: 1.0 });
                             const textContent = await page.getTextContent();
-                            // 以前の実装を使用 (今回はOCRメインなので省略可能だが互換性のため)
-                            // ...
+                            // Simplified text extraction for non-OCR fallback
+                            const ptToInch = 1 / 72;
+                            extractedTexts = textContent.items.map(item => {
+                                const tx = pdfjsLib.Util.transform(viewportScale1.transform, item.transform);
+                                const fontSize = Math.sqrt(item.transform[0]*item.transform[0] + item.transform[1]*item.transform[1]);
+                                return {
+                                    text: item.str,
+                                    x: tx[4], // PDF point
+                                    y: viewportScale1.height - tx[5] - fontSize, // Top-left Y
+                                    w: item.width,
+                                    h: fontSize,
+                                    fontSize: fontSize,
+                                    isOCR: false
+                                };
+                            });
                         }
 
                         // Use scale 1.0 viewport for reference of width/height
@@ -419,36 +432,38 @@
                         const ptToInch = 1 / 72; // PPTX uses inches
                         
                         pageData.texts.forEach(txt => {
-                            // Convert OCR pixel coordinates (from scaled canvas) to PPTX Inches
-                            // x(px) / scale / 72
-                            
-                            const xInch = txt.x / scale * ptToInch;
-                            const yInch = txt.y / scale * ptToInch;
-                            const wInch = (txt.w / scale * ptToInch) + 0.1; // 少し幅に余裕を
-                            const hInch = (txt.h / scale * ptToInch) * 1.2;
-                            
-                            // フォントサイズも変換: px / scale = pt (approx 1px = 0.75pt but depends on DPI)
-                            // Tesseract pixel height ~ font size in px.
-                            // Convert to points for PPTX: (px / scale) * 0.75 roughly? 
-                            // Or just use proportional height. 
-                            // Let's assume 72dpi for simplicity in inches conversion above.
-                            // fontSize (pt) approx = (txt.fontSize / scale)
-                            const fontSizePt = (txt.fontSize / scale) * 0.9; 
+                            let xInch, yInch, wInch, hInch, fontSizePt;
+
+                            if (txt.isOCR) {
+                                // Convert OCR pixel coordinates
+                                xInch = txt.x / scale * ptToInch;
+                                yInch = txt.y / scale * ptToInch;
+                                wInch = (txt.w / scale * ptToInch) + 0.1; 
+                                hInch = (txt.h / scale * ptToInch) * 1.1;
+                                // フォントサイズ調整: 以前より小さくして枠内に収める
+                                fontSizePt = (txt.fontSize / scale) * 0.75;
+                            } else {
+                                // Fallback for normal PDF text extraction
+                                xInch = txt.x * ptToInch;
+                                yInch = txt.y * ptToInch;
+                                wInch = (txt.w * ptToInch) + 0.1;
+                                hInch = txt.h * ptToInch;
+                                fontSizePt = txt.fontSize;
+                            }
 
                             slide.addText(txt.text, {
                                 x: xInch,
                                 y: yInch,
                                 w: wInch,
                                 h: hInch,
-                                fontSize: Math.max(8, fontSizePt), // Min size 8
+                                fontSize: Math.max(6, fontSizePt), // 最小サイズを少し下げる
                                 fontFace: 'Arial',
                                 color: '000000',
-                                fill: 'FFFFFF',      // 白背景
-                                transparency: 10,    // 若干透過
+                                fill: 'FFFFFF',      // 不透明な白背景で元の文字を隠す
+                                transparency: 0,     // 透過なし
                                 align: 'left',
                                 valign: 'top',
-                                line: { color: '00FF00', width: 0.5 }, // OCR認識箇所は緑枠で目立たせる（デバッグ的にも）
-                                margin: 2
+                                margin: 1            // マージンを詰める
                             });
                         });
                     });
