@@ -147,7 +147,7 @@
             <div class="flex justify-end pt-4 border-t border-gray-100 items-center gap-4">
                 <div class="text-xs text-gray-400 text-right">
                     ※OCR結果で元の文字を白く塗りつぶして配置します。<br>
-                    ※文字サイズは自動調整されます。
+                    ※文字サイズはPDFに合わせて自動調整されます。
                 </div>
                 <button id="download-btn" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <div id="btn-spinner" class="loader w-5 h-5 rounded-full border-2 border-white border-t-transparent hidden"></div>
@@ -200,6 +200,14 @@
             if (typeof pdfjsLib === 'undefined') {
                 alert('エラー: PDF解析ライブラリが読み込めませんでした。');
                 return;
+            }
+
+            // 全角英数字・記号・スペースを半角に変換する関数
+            function toHalfWidth(str) {
+                if (!str) return "";
+                return str.replace(/[！-～]/g, function(s) {
+                    return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+                }).replace(/　/g, " ");
             }
 
             // Drag & Drop Handlers
@@ -315,17 +323,17 @@
                             log(`Page ${pageNum}: ${lines.length} 行のテキストを検出`);
                             
                             // OCRの座標をPPTX(インチ)に変換
-                            // Canvas scale=2.0, OCR coordinates are in pixels on this canvas
-                            // PPTX: 72 dpi (points) = 1 inch
-                            // Conversion: pixel / scale / 72
                             
                             extractedTexts = lines.map(line => {
                                 // Tesseract bbox: x0, y0, x1, y1
                                 const bbox = line.bbox;
                                 const fontSizePx = bbox.y1 - bbox.y0;
                                 
+                                // 改行除去し、全角→半角変換を適用
+                                const cleanedText = toHalfWidth(line.text.replace(/\n/g, ''));
+
                                 return {
-                                    text: line.text.replace(/\n/g, ''), // 改行除去
+                                    text: cleanedText,
                                     x: bbox.x0,
                                     y: bbox.y0,
                                     w: bbox.x1 - bbox.x0,
@@ -435,15 +443,20 @@
                             let xInch, yInch, wInch, hInch, fontSizePt;
 
                             if (txt.isOCR) {
-                                // Convert OCR pixel coordinates
-                                xInch = txt.x / scale * ptToInch;
-                                yInch = txt.y / scale * ptToInch;
-                                wInch = (txt.w / scale * ptToInch) + 0.1; 
-                                hInch = (txt.h / scale * ptToInch) * 1.1;
-                                // フォントサイズ調整: 以前より小さくして枠内に収める
-                                fontSizePt = (txt.fontSize / scale) * 0.75;
+                                // OCR座標変換
+                                // パディングを追加して元の文字を完全に隠すように調整
+                                const padding = 0.05; // インチ単位の拡大パディング
+                                
+                                xInch = (txt.x / scale * ptToInch) - padding;
+                                yInch = (txt.y / scale * ptToInch) - padding;
+                                wInch = (txt.w / scale * ptToInch) + (padding * 2); 
+                                hInch = (txt.h / scale * ptToInch) + (padding * 2);
+                                
+                                // フォントサイズ調整: 
+                                // 0.55倍に縮小して、PowerPoint上で巨大化するのを防ぐ
+                                fontSizePt = (txt.fontSize / scale) * 0.55;
                             } else {
-                                // Fallback for normal PDF text extraction
+                                // Fallback for normal PDF
                                 xInch = txt.x * ptToInch;
                                 yInch = txt.y * ptToInch;
                                 wInch = (txt.w * ptToInch) + 0.1;
@@ -456,14 +469,14 @@
                                 y: yInch,
                                 w: wInch,
                                 h: hInch,
-                                fontSize: Math.max(6, fontSizePt), // 最小サイズを少し下げる
+                                fontSize: Math.max(6, fontSizePt), // 最小サイズは6pt
                                 fontFace: 'Arial',
                                 color: '000000',
                                 fill: 'FFFFFF',      // 不透明な白背景で元の文字を隠す
                                 transparency: 0,     // 透過なし
-                                align: 'left',
-                                valign: 'top',
-                                margin: 1            // マージンを詰める
+                                align: 'left',       // 左寄せ
+                                valign: 'middle',    // 上下中央揃え
+                                margin: 0            // ボックス一杯に背景を塗る
                             });
                         });
                     });
