@@ -139,6 +139,11 @@
     </footer>
 
     <script>
+        // PDF.jsのワーカー設定をグローバルスコープで確実に実行
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             
             // DOM Elements
@@ -159,12 +164,9 @@
 
             // Check PDF.js availability
             if (typeof pdfjsLib === 'undefined') {
-                alert('エラー: PDF解析ライブラリが読み込めませんでした。ネットワーク接続を確認して再読み込みしてください。');
+                alert('エラー: PDF解析ライブラリが読み込めませんでした。広告ブロッカー等が干渉している可能性があります。');
                 return;
             }
-            
-            // Set Worker
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
             // Drag & Drop Handlers (Prevent Defaults)
             window.addEventListener('dragover', (e) => e.preventDefault(), false);
@@ -204,13 +206,22 @@
 
                 try {
                     const arrayBuffer = await file.arrayBuffer();
-                    pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    // 【修正点】日本語フォント(CMap)の設定を追加
+                    // これがないと日本語を含むPDFの読み込みで止まることがあります
+                    pdfDoc = await pdfjsLib.getDocument({ 
+                        data: arrayBuffer,
+                        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                        cMapPacked: true,
+                    }).promise;
+                    
                     pageCountLabel.textContent = `${pdfDoc.numPages} ページ`;
                     await processPages();
                 } catch (err) {
-                    console.error(err);
-                    alert('PDFの読み込みに失敗しました。');
+                    console.error('PDF Read Error:', err);
+                    alert(`PDFの読み込みに失敗しました。\n\n詳細: ${err.message}\n\n・パスワードがかかっている\n・ファイルが破損している\n・ブラウザの拡張機能が干渉している\n可能性があります。`);
                     statusText.textContent = 'エラーが発生しました';
+                    isProcessing = false;
                 }
             }
 
@@ -256,6 +267,7 @@
 
                     } catch (err) {
                         console.error(`Page ${pageNum} process error:`, err);
+                        // エラーが起きても続行を試みる
                     }
                 }
 
@@ -409,3 +421,20 @@
                                 noWrap: false // 折り返し許可
                             });
                         });
+                    });
+
+                    await pres.writeFile({ fileName: "Editable_Slides_Pro.pptx" });
+                    statusText.textContent = 'ダウンロードが完了しました。';
+
+                } catch (err) {
+                    console.error(err);
+                    alert('ファイル生成中にエラーが発生しました。');
+                } finally {
+                    downloadBtn.disabled = false;
+                    btnSpinner.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
