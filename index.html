@@ -13,9 +13,6 @@
     
     <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
 
     <!-- PptxGenJS -->
     <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
@@ -74,7 +71,8 @@
         </div>
 
         <!-- Upload Area -->
-        <div id="drop-zone" class="bg-white border-4 border-dashed border-gray-300 rounded-2xl p-12 text-center transition-all duration-300 hover:border-blue-400 group cursor-pointer">
+        <!-- 修正: divタグをlabelタグに変更し、for属性を追加。これによりJavaScriptエラー時でもクリックでファイル選択が開くようになります -->
+        <label id="drop-zone" for="file-input" class="block w-full bg-white border-4 border-dashed border-gray-300 rounded-2xl p-12 text-center transition-all duration-300 hover:border-blue-400 group cursor-pointer">
             <input type="file" id="file-input" accept="application/pdf" class="hidden">
             
             <div class="space-y-4 pointer-events-none">
@@ -87,7 +85,7 @@
                 </div>
                 <p class="text-xs text-gray-400">最大 50MB まで • テキスト解析モード搭載</p>
             </div>
-        </div>
+        </label>
 
         <!-- Processing UI (Hidden initially) -->
         <div id="processing-area" class="hidden bg-white rounded-xl shadow-lg p-6 space-y-6">
@@ -142,152 +140,247 @@
     </footer>
 
     <script>
-        // DOM Elements
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const processingArea = document.getElementById('processing-area');
-        const previewGrid = document.getElementById('preview-grid');
-        const progressBar = document.getElementById('progress-bar');
-        const statusText = document.getElementById('status-text');
-        const downloadBtn = document.getElementById('download-btn');
-        const pageCountLabel = document.getElementById('page-count');
-        const btnSpinner = document.getElementById('btn-spinner');
+        // DOMContentLoadedですべての要素が読み込まれてから実行
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // DOM Elements
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const processingArea = document.getElementById('processing-area');
+            const previewGrid = document.getElementById('preview-grid');
+            const progressBar = document.getElementById('progress-bar');
+            const statusText = document.getElementById('status-text');
+            const downloadBtn = document.getElementById('download-btn');
+            const pageCountLabel = document.getElementById('page-count');
+            const btnSpinner = document.getElementById('btn-spinner');
 
-        // State
-        let pdfDoc = null;
-        let slideData = []; // Stores objects { background: dataURL, texts: [ {text, x, y, fontSize...} ] }
-        let isProcessing = false;
+            // State
+            let pdfDoc = null;
+            let slideData = [];
+            let isProcessing = false;
 
-        // Drag & Drop Handlers
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-active');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-active');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        });
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) handleFile(e.target.files[0]);
-        });
-
-        // Main File Handler
-        async function handleFile(file) {
-            if (file.type !== 'application/pdf') {
-                alert('PDFファイルを選択してください。');
+            // Check PDF.js availability
+            if (typeof pdfjsLib === 'undefined') {
+                alert('エラー: PDF解析ライブラリが読み込めませんでした。ネットワーク接続を確認して再読み込みしてください。');
                 return;
             }
+            
+            // Set Worker
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-            // Reset UI
-            processingArea.classList.remove('hidden');
-            previewGrid.innerHTML = '';
-            slideData = [];
-            progressBar.style.width = '0%';
-            downloadBtn.disabled = true;
-            statusText.textContent = 'PDFを読み込み中...';
-            isProcessing = true;
+            // Drag & Drop Handlers
+            // 修正: 'click'イベントはlabelタグの標準動作に任せるため削除しました
+            
+            // Prevent default drag behaviors for the entire window to be safe
+            window.addEventListener('dragover', (e) => e.preventDefault(), false);
+            window.addEventListener('drop', (e) => e.preventDefault(), false);
 
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                
-                pageCountLabel.textContent = `${pdfDoc.numPages} ページ`;
-                await processPages();
-
-            } catch (err) {
-                console.error(err);
-                alert('PDFの読み込みに失敗しました。');
-                statusText.textContent = 'エラーが発生しました';
+            // Specific Drop Zone handlers
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
             }
-        }
 
-        // Process PDF Pages (Image + Text Extraction)
-        async function processPages() {
-            const totalPages = pdfDoc.numPages;
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
 
-            for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+            dropZone.addEventListener('dragover', () => {
+                dropZone.classList.add('drag-active');
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-active');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                dropZone.classList.remove('drag-active');
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length) handleFile(files[0]);
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) handleFile(e.target.files[0]);
+            });
+
+            // Main File Handler
+            async function handleFile(file) {
+                if (file.type !== 'application/pdf') {
+                    alert('PDFファイルを選択してください。');
+                    return;
+                }
+
+                // Reset UI
+                processingArea.classList.remove('hidden');
+                previewGrid.innerHTML = '';
+                slideData = [];
+                progressBar.style.width = '0%';
+                downloadBtn.disabled = true;
+                statusText.textContent = 'PDFを読み込み中...';
+                isProcessing = true;
+
                 try {
-                    statusText.textContent = `${pageNum} / ${totalPages} ページを解析中...`;
-                    const page = await pdfDoc.getPage(pageNum);
+                    const arrayBuffer = await file.arrayBuffer();
+                    pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                     
-                    // 1. Render Background Image (Standard Resolution)
-                    const scale = 2.0;
-                    const viewport = page.getViewport({ scale: scale });
-                    
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-
-                    await page.render({
-                        canvasContext: context,
-                        viewport: viewport
-                    }).promise;
-
-                    const bgImgData = canvas.toDataURL('image/jpeg', 0.8);
-                    
-                    // 2. Extract Text Content
-                    // We need viewport at scale 1.0 for calculation to inches
-                    const viewportScale1 = page.getViewport({ scale: 1.0 });
-                    const textContent = await page.getTextContent();
-                    
-                    // Process Text Items
-                    const extractedTexts = processTextItems(textContent.items, viewportScale1);
-
-                    // Store Data
-                    slideData.push({
-                        pageNum: pageNum,
-                        width: viewportScale1.width,
-                        height: viewportScale1.height,
-                        background: bgImgData,
-                        texts: extractedTexts
-                    });
-
-                    // Update UI
-                    addPreviewImage(bgImgData, pageNum);
-                    const progress = (pageNum / totalPages) * 100;
-                    progressBar.style.width = `${progress}%`;
+                    pageCountLabel.textContent = `${pdfDoc.numPages} ページ`;
+                    await processPages();
 
                 } catch (err) {
-                    console.error(`Page ${pageNum} process error:`, err);
+                    console.error(err);
+                    alert('PDFの読み込みに失敗しました。ファイルが破損しているか、パスワードがかかっている可能性があります。');
+                    statusText.textContent = 'エラーが発生しました';
                 }
             }
 
-            statusText.textContent = '解析完了！ダウンロードボタンを押してください。';
-            downloadBtn.disabled = false;
-            isProcessing = false;
-        }
+            // Process PDF Pages (Image + Text Extraction)
+            async function processPages() {
+                const totalPages = pdfDoc.numPages;
 
-        // Helper: Convert PDF Text Items to PPTX-friendly format
-        function processTextItems(items, viewport) {
-            const processed = [];
-            
-            // Simple logic: treat each item as a text box
-            // Note: A robust implementation would merge items on the same line
-            // Here we use a simplified merging for contiguous text fragments
-            
-            let currentLine = null;
+                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    try {
+                        statusText.textContent = `${pageNum} / ${totalPages} ページを解析中...`;
+                        const page = await pdfDoc.getPage(pageNum);
+                        
+                        // 1. Render Background Image
+                        const scale = 2.0;
+                        const viewport = page.getViewport({ scale: scale });
+                        
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
 
-            items.forEach(item => {
-                if (!item.str || item.str.trim() === '') return;
+                        await page.render({
+                            canvasContext: context,
+                            viewport: viewport
+                        }).promise;
 
-                // PDF coordinates transform
-                // item.transform is [scaleX, skewY, skewX, scaleY, x, y]
-                // PDF y starts from bottom, we need to flip it
-                const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-                
-                // Calculate position in points (approximate)
-                // item.transform[4] is x, item.transform[5] is y in PDF space
-                // We use the viewport-transformed coordinates
-                const x = tx[4];
-                const y = tx[5] - (item.height || item.transform[3]); // Adjust for bottom-up vs top-down
+                        const bgImgData = canvas.toDataURL('image/jpeg', 0.8);
+                        
+                        // 2. Extract Text Content
+                        const viewportScale1 = page.getViewport({ scale: 1.0 });
+                        const textContent = await page.getTextContent();
+                        const extractedTexts = processTextItems(textContent.items, viewportScale1);
 
-                // Font size approx
-                // The item.transform[0] is roughly font size if not scaled otherwise
-                // We take height from the transform matrix scaleY
-                const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
+                        // Store Data
+                        slideData.push({
+                            pageNum: pageNum,
+                            width: viewportScale1.width,
+                            height: viewportScale1.height,
+                            background: bgImgData,
+                            texts: extractedTexts
+                        });
 
-                // Convert pixels to inches (PPTX uses inches by default, assuming 72 or 96 dpi
+                        // Update UI
+                        addPreviewImage(bgImgData, pageNum);
+                        const progress = (pageNum / totalPages) * 100;
+                        progressBar.style.width = `${progress}%`;
+
+                    } catch (err) {
+                        console.error(`Page ${pageNum} process error:`, err);
+                    }
+                }
+
+                statusText.textContent = '解析完了！ダウンロードボタンを押してください。';
+                downloadBtn.disabled = false;
+                isProcessing = false;
+            }
+
+            // Helper: Convert PDF Text Items
+            function processTextItems(items, viewport) {
+                const processed = [];
+                items.forEach(item => {
+                    if (!item.str || item.str.trim() === '') return;
+
+                    const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+                    const x = tx[4];
+                    const y = tx[5] - (item.height || item.transform[3]); 
+                    const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
+                    const ptToInch = 1 / 72;
+
+                    processed.push({
+                        text: item.str,
+                        x: x * ptToInch,
+                        y: (viewport.height - tx[5]) * ptToInch - (fontSize * ptToInch * 0.8),
+                        w: (item.width * item.transform[0]) * ptToInch + 0.5,
+                        h: fontSize * ptToInch * 1.5,
+                        fontSize: fontSize,
+                        fontFace: 'Arial'
+                    });
+                });
+                return processed;
+            }
+
+            // Add Thumbnail to Grid
+            function addPreviewImage(imgData, num) {
+                const div = document.createElement('div');
+                div.className = 'relative group aspect-video bg-white shadow rounded overflow-hidden border border-gray-200';
+                div.innerHTML = `
+                    <img src="${imgData}" class="w-full h-full object-contain">
+                    <div class="absolute bottom-0 left-0 bg-black/50 text-white text-xs px-2 py-1">Page ${num}</div>
+                    <div class="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow">TEXT抽出済</div>
+                `;
+                previewGrid.appendChild(div);
+            }
+
+            // Generate PPTX
+            downloadBtn.addEventListener('click', async () => {
+                if (slideData.length === 0) return;
+
+                downloadBtn.disabled = true;
+                btnSpinner.classList.remove('hidden');
+                statusText.textContent = '編集可能PPTXを生成中...';
+
+                try {
+                    let pres = new PptxGenJS();
+                    pres.author = 'PDF Converter';
+                    pres.title = 'Editable Presentation';
+
+                    slideData.forEach((pageData) => {
+                        const slide = pres.addSlide();
+                        
+                        // Background
+                        slide.addImage({
+                            data: pageData.background,
+                            x: 0,
+                            y: 0,
+                            w: '100%',
+                            h: '100%',
+                            sizing: { type: 'contain', align: 'center' }
+                        });
+
+                        // Editable Text Overlay
+                        pageData.texts.forEach(txt => {
+                            slide.addText(txt.text, {
+                                x: txt.x,
+                                y: txt.y,
+                                w: txt.w,
+                                h: txt.h,
+                                fontSize: txt.fontSize,
+                                fontFace: txt.fontFace,
+                                color: '000000',
+                                fill: 'FFFFFF',
+                                transparency: 0,
+                                align: 'left',
+                                valign: 'top'
+                            });
+                        });
+                    });
+
+                    await pres.writeFile({ fileName: "Editable_Slides.pptx" });
+                    statusText.textContent = 'ダウンロードが完了しました。';
+
+                } catch (err) {
+                    console.error(err);
+                    alert('ファイル生成中にエラーが発生しました。');
+                } finally {
+                    downloadBtn.disabled = false;
+                    btnSpinner.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
