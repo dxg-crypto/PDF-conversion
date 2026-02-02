@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF to Google Slides Converter (Editable)</title>
+    <title>PDF to Google Slides Converter (Editable Pro)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -50,7 +50,7 @@
                 <div class="bg-yellow-400 text-white p-2 rounded-lg">
                     <i class="fa-solid fa-file-pen text-xl"></i>
                 </div>
-                <h1 class="text-xl font-bold text-gray-800 ml-2">PDF to Slides (Editable)</h1>
+                <h1 class="text-xl font-bold text-gray-800 ml-2">PDF to Slides (Editable Pro)</h1>
             </div>
             <a href="https://github.com" target="_blank" class="text-gray-500 hover:text-gray-900">
                 <i class="fa-brands fa-github text-2xl"></i>
@@ -63,15 +63,14 @@
         
         <!-- Intro Text -->
         <div class="text-center space-y-2">
-            <h2 class="text-3xl font-bold text-gray-900">PDFを<span class="text-blue-600">編集可能な</span>スライドに変換</h2>
+            <h2 class="text-3xl font-bold text-gray-900">PDFを<span class="text-blue-600">もっと編集しやすく</span>変換</h2>
             <p class="text-gray-600">
-                PDFの文字情報を解析し、PowerPoint上で編集できるテキストボックスとして再配置します。<br>
-                画像や図表も背景として保持されます。
+                バラバラの文字を「文章」として結合し、PowerPoint上で編集しやすいテキストボックスを生成します。<br>
+                背景画像の上に、白背景のテキストボックスを重ねて配置します。
             </p>
         </div>
 
         <!-- Upload Area -->
-        <!-- 修正: divタグをlabelタグに変更し、for属性を追加。これによりJavaScriptエラー時でもクリックでファイル選択が開くようになります -->
         <label id="drop-zone" for="file-input" class="block w-full bg-white border-4 border-dashed border-gray-300 rounded-2xl p-12 text-center transition-all duration-300 hover:border-blue-400 group cursor-pointer">
             <input type="file" id="file-input" accept="application/pdf" class="hidden">
             
@@ -83,7 +82,7 @@
                     <h3 class="text-xl font-bold text-gray-700">ここにPDFをドラッグ＆ドロップ</h3>
                     <p class="text-gray-500 mt-2">またはクリックしてファイルを選択</p>
                 </div>
-                <p class="text-xs text-gray-400">最大 50MB まで • テキスト解析モード搭載</p>
+                <p class="text-xs text-gray-400">最大 50MB まで • スマートテキスト結合モード搭載</p>
             </div>
         </label>
 
@@ -111,8 +110,8 @@
             <!-- Actions -->
             <div class="flex justify-end pt-4 border-t border-gray-100 items-center gap-4">
                 <div class="text-xs text-gray-400 text-right">
-                    ※テキストは白い背景で上書き配置されます。<br>
-                    ※複雑なレイアウトは多少ずれる場合があります。
+                    ※行ごとにテキストボックスを結合しています。<br>
+                    ※フォントの違いにより多少ズレることがあります。
                 </div>
                 <button id="download-btn" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <div id="btn-spinner" class="loader w-5 h-5 rounded-full border-2 border-white border-t-transparent hidden"></div>
@@ -127,8 +126,8 @@
             <ol class="list-decimal list-inside space-y-2 text-blue-900 text-sm">
                 <li>PDFを選択すると、テキスト解析と画像変換処理が始まります。</li>
                 <li>「編集可能PPTXをダウンロード」ボタンを押してください。</li>
-                <li>生成されたファイルは、<strong>画像の上にテキストボックスが乗った状態</strong>になります。</li>
-                <li>テキストをクリックすれば編集可能です。不要なテキストは削除すると、下の画像（元の文字）が見えます。</li>
+                <li>生成されたファイルは、背景画像の上に<strong>白い背景のテキストボックス</strong>が乗った状態になります。</li>
+                <li>テキストをクリックすれば編集可能です。</li>
             </ol>
         </div>
 
@@ -140,7 +139,6 @@
     </footer>
 
     <script>
-        // DOMContentLoadedですべての要素が読み込まれてから実行
         document.addEventListener('DOMContentLoaded', () => {
             
             // DOM Elements
@@ -168,36 +166,20 @@
             // Set Worker
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-            // Drag & Drop Handlers
-            // 修正: 'click'イベントはlabelタグの標準動作に任せるため削除しました
-            
-            // Prevent default drag behaviors for the entire window to be safe
+            // Drag & Drop Handlers (Prevent Defaults)
             window.addEventListener('dragover', (e) => e.preventDefault(), false);
             window.addEventListener('drop', (e) => e.preventDefault(), false);
 
-            // Specific Drop Zone handlers
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
+            function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropZone.addEventListener(eventName, preventDefaults, false);
             });
 
-            dropZone.addEventListener('dragover', () => {
-                dropZone.classList.add('drag-active');
-            });
-            
-            dropZone.addEventListener('dragleave', () => {
-                dropZone.classList.remove('drag-active');
-            });
-            
+            dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-active'));
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
             dropZone.addEventListener('drop', (e) => {
                 dropZone.classList.remove('drag-active');
-                const dt = e.dataTransfer;
-                const files = dt.files;
-                if (files.length) handleFile(files[0]);
+                if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
             });
             
             fileInput.addEventListener('change', (e) => {
@@ -223,18 +205,16 @@
                 try {
                     const arrayBuffer = await file.arrayBuffer();
                     pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    
                     pageCountLabel.textContent = `${pdfDoc.numPages} ページ`;
                     await processPages();
-
                 } catch (err) {
                     console.error(err);
-                    alert('PDFの読み込みに失敗しました。ファイルが破損しているか、パスワードがかかっている可能性があります。');
+                    alert('PDFの読み込みに失敗しました。');
                     statusText.textContent = 'エラーが発生しました';
                 }
             }
 
-            // Process PDF Pages (Image + Text Extraction)
+            // Process PDF Pages
             async function processPages() {
                 const totalPages = pdfDoc.numPages;
 
@@ -252,19 +232,16 @@
                         canvas.height = viewport.height;
                         canvas.width = viewport.width;
 
-                        await page.render({
-                            canvasContext: context,
-                            viewport: viewport
-                        }).promise;
-
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
                         const bgImgData = canvas.toDataURL('image/jpeg', 0.8);
                         
-                        // 2. Extract Text Content
+                        // 2. Extract and MERGE Text Content
                         const viewportScale1 = page.getViewport({ scale: 1.0 });
                         const textContent = await page.getTextContent();
-                        const extractedTexts = processTextItems(textContent.items, viewportScale1);
+                        
+                        // ここで「行の結合」を行う新しい関数を使用
+                        const extractedTexts = processAndMergeTextItems(textContent.items, viewportScale1);
 
-                        // Store Data
                         slideData.push({
                             pageNum: pageNum,
                             width: viewportScale1.width,
@@ -273,7 +250,6 @@
                             texts: extractedTexts
                         });
 
-                        // Update UI
                         addPreviewImage(bgImgData, pageNum);
                         const progress = (pageNum / totalPages) * 100;
                         progressBar.style.width = `${progress}%`;
@@ -288,32 +264,96 @@
                 isProcessing = false;
             }
 
-            // Helper: Convert PDF Text Items
-            function processTextItems(items, viewport) {
-                const processed = [];
-                items.forEach(item => {
-                    if (!item.str || item.str.trim() === '') return;
+            // 【重要】テキスト結合ロジック
+            // バラバラの文字アイテムを行ごとにまとめて「文章」にする
+            function processAndMergeTextItems(items, viewport) {
+                if (!items || items.length === 0) return [];
 
+                // 1. 各アイテムの座標を計算して正規化
+                const rawItems = items.map(item => {
+                    if (!item.str || item.str.trim() === '') return null;
+                    
                     const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-                    const x = tx[4];
-                    const y = tx[5] - (item.height || item.transform[3]); 
-                    const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
-                    const ptToInch = 1 / 72;
+                    // PDFのY座標(下から)をHTML/PPTX(上から)に変換
+                    // item.height が undefined の場合もあるため item.transform[3] (scaleY) をフォールバックに使用
+                    const fontSize = Math.sqrt(item.transform[0]*item.transform[0] + item.transform[1]*item.transform[1]);
+                    const yRaw = tx[5]; 
+                    const xRaw = tx[4];
+                    const hRaw = item.height || item.transform[3] || fontSize;
+                    
+                    // viewport基準のY座標 (左上が0)
+                    const yTop = viewport.height - yRaw - hRaw; 
 
-                    processed.push({
-                        text: item.str,
-                        x: x * ptToInch,
-                        y: (viewport.height - tx[5]) * ptToInch - (fontSize * ptToInch * 0.8),
-                        w: (item.width * item.transform[0]) * ptToInch + 0.5,
-                        h: fontSize * ptToInch * 1.5,
+                    return {
+                        str: item.str,
+                        x: xRaw,
+                        y: yTop, // 上からの座標
+                        w: item.width * item.transform[0], // 幅
+                        h: hRaw,
                         fontSize: fontSize,
-                        fontFace: 'Arial'
-                    });
+                        fontName: item.fontName,
+                        hasEOL: item.hasEOL // 行末フラグ
+                    };
+                }).filter(i => i !== null);
+
+                // 2. Y座標（行）でソート
+                // 完全に同じYでなくても、数ピクセルの誤差なら同じ行とみなす
+                rawItems.sort((a, b) => {
+                    if (Math.abs(a.y - b.y) < 5) { // 5px以内の誤差は同じ行とみなしてXでソート
+                        return a.x - b.x;
+                    }
+                    return a.y - b.y;
                 });
-                return processed;
+
+                // 3. マージ処理
+                const mergedLines = [];
+                let currentLine = null;
+
+                for (const item of rawItems) {
+                    if (!currentLine) {
+                        currentLine = { ...item };
+                        continue;
+                    }
+
+                    // 同じ行かどうか判定 (Y座標が近く、かつフォントサイズが近い)
+                    const isSameLine = Math.abs(item.y - currentLine.y) < (currentLine.h * 0.5); 
+                    // 隣接しているか判定 (X座標が離れすぎていないか)
+                    // スペース幅の許容範囲をフォントサイズの2倍程度と仮定
+                    const isAdjacent = (item.x - (currentLine.x + currentLine.w)) < (currentLine.fontSize * 2.0);
+
+                    if (isSameLine && isAdjacent) {
+                        // 文字列を結合
+                        // もしアイテム間の距離がある程度あればスペースを入れる簡易ロジック
+                        const distance = item.x - (currentLine.x + currentLine.w);
+                        const spacer = (distance > currentLine.fontSize * 0.2) ? ' ' : '';
+                        
+                        currentLine.str += spacer + item.str;
+                        currentLine.w = (item.x + item.w) - currentLine.x; // 幅を拡張
+                        // 高さは大きい方に合わせる
+                        currentLine.h = Math.max(currentLine.h, item.h);
+                        // Y座標は平均を取るか、上のものに合わせる（ここでは最初のに合わせる）
+                    } else {
+                        // 行が変わったので今の行を確定
+                        mergedLines.push(currentLine);
+                        currentLine = { ...item };
+                    }
+                }
+                if (currentLine) mergedLines.push(currentLine);
+
+                // 4. PPTX用の単位(インチ)に変換して出力
+                const ptToInch = 1 / 72;
+                
+                return mergedLines.map(line => ({
+                    text: line.str,
+                    x: line.x * ptToInch,
+                    y: line.y * ptToInch, // 既にTop基準
+                    w: (line.w * ptToInch) + 0.1, // 少し余裕を持たせる
+                    h: (line.fontSize * ptToInch) * 1.2, // 行間を考慮して高さを確保
+                    fontSize: line.fontSize,
+                    fontFace: 'Arial' // 汎用フォント
+                }));
             }
 
-            // Add Thumbnail to Grid
             function addPreviewImage(imgData, num) {
                 const div = document.createElement('div');
                 div.className = 'relative group aspect-video bg-white shadow rounded overflow-hidden border border-gray-200';
@@ -325,7 +365,6 @@
                 previewGrid.appendChild(div);
             }
 
-            // Generate PPTX
             downloadBtn.addEventListener('click', async () => {
                 if (slideData.length === 0) return;
 
@@ -337,11 +376,13 @@
                     let pres = new PptxGenJS();
                     pres.author = 'PDF Converter';
                     pres.title = 'Editable Presentation';
+                    // レイアウト崩れを防ぐため、16:9ではなくPDFのサイズに合わせるのが理想だが
+                    // ここではデフォルトの16:9 (10x5.625inch) に配置する
 
                     slideData.forEach((pageData) => {
                         const slide = pres.addSlide();
                         
-                        // Background
+                        // 背景画像
                         slide.addImage({
                             data: pageData.background,
                             x: 0,
@@ -351,7 +392,7 @@
                             sizing: { type: 'contain', align: 'center' }
                         });
 
-                        // Editable Text Overlay
+                        // テキストボックス (白背景で上書き)
                         pageData.texts.forEach(txt => {
                             slide.addText(txt.text, {
                                 x: txt.x,
@@ -361,26 +402,10 @@
                                 fontSize: txt.fontSize,
                                 fontFace: txt.fontFace,
                                 color: '000000',
-                                fill: 'FFFFFF',
-                                transparency: 0,
+                                fill: 'FFFFFF', // 白背景で元の文字を隠す
+                                // transparency: 20, // デバッグ時は透明度を入れるとわかりやすい
                                 align: 'left',
-                                valign: 'top'
+                                valign: 'top',
+                                noWrap: false // 折り返し許可
                             });
                         });
-                    });
-
-                    await pres.writeFile({ fileName: "Editable_Slides.pptx" });
-                    statusText.textContent = 'ダウンロードが完了しました。';
-
-                } catch (err) {
-                    console.error(err);
-                    alert('ファイル生成中にエラーが発生しました。');
-                } finally {
-                    downloadBtn.disabled = false;
-                    btnSpinner.classList.add('hidden');
-                }
-            });
-        });
-    </script>
-</body>
-</html>
