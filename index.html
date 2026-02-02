@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF to Google Slides Converter (High Fidelity)</title>
+    <title>PDF to Google Slides Converter (Editable)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -51,9 +51,9 @@
                 </div>
                 <i class="fa-solid fa-arrow-right text-gray-400"></i>
                 <div class="bg-yellow-400 text-white p-2 rounded-lg">
-                    <i class="fa-solid fa-file-powerpoint text-xl"></i>
+                    <i class="fa-solid fa-file-pen text-xl"></i>
                 </div>
-                <h1 class="text-xl font-bold text-gray-800 ml-2">PDF to Slides Converter</h1>
+                <h1 class="text-xl font-bold text-gray-800 ml-2">PDF to Slides (Editable)</h1>
             </div>
             <a href="https://github.com" target="_blank" class="text-gray-500 hover:text-gray-900">
                 <i class="fa-brands fa-github text-2xl"></i>
@@ -66,10 +66,10 @@
         
         <!-- Intro Text -->
         <div class="text-center space-y-2">
-            <h2 class="text-3xl font-bold text-gray-900">PDFをスライド形式に完全変換</h2>
+            <h2 class="text-3xl font-bold text-gray-900">PDFを<span class="text-blue-600">編集可能な</span>スライドに変換</h2>
             <p class="text-gray-600">
-                フォント崩れや画像のズレを防止するため、ページを画像としてスライドに配置します。<br>
-                生成されたファイル(.pptx)をGoogleドライブにアップロードするだけで完了です。
+                PDFの文字情報を解析し、PowerPoint上で編集できるテキストボックスとして再配置します。<br>
+                画像や図表も背景として保持されます。
             </p>
         </div>
 
@@ -85,7 +85,7 @@
                     <h3 class="text-xl font-bold text-gray-700">ここにPDFをドラッグ＆ドロップ</h3>
                     <p class="text-gray-500 mt-2">またはクリックしてファイルを選択</p>
                 </div>
-                <p class="text-xs text-gray-400">最大 50MB まで • ブラウザ内で処理されるため安全です</p>
+                <p class="text-xs text-gray-400">最大 50MB まで • テキスト解析モード搭載</p>
             </div>
         </div>
 
@@ -111,10 +111,14 @@
             </div>
 
             <!-- Actions -->
-            <div class="flex justify-end pt-4 border-t border-gray-100">
-                <button id="download-btn" disabled class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <div class="flex justify-end pt-4 border-t border-gray-100 items-center gap-4">
+                <div class="text-xs text-gray-400 text-right">
+                    ※テキストは白い背景で上書き配置されます。<br>
+                    ※複雑なレイアウトは多少ずれる場合があります。
+                </div>
+                <button id="download-btn" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <div id="btn-spinner" class="loader w-5 h-5 rounded-full border-2 border-white border-t-transparent hidden"></div>
-                    <i class="fa-solid fa-download"></i> スライド(.pptx)をダウンロード
+                    <i class="fa-solid fa-download"></i> 編集可能PPTXをダウンロード
                 </button>
             </div>
         </div>
@@ -123,10 +127,10 @@
         <div class="bg-blue-50 border border-blue-100 rounded-xl p-6">
             <h3 class="font-bold text-blue-800 mb-4"><i class="fa-solid fa-circle-info mr-2"></i>使い方のヒント</h3>
             <ol class="list-decimal list-inside space-y-2 text-blue-900 text-sm">
-                <li>PDFを選択すると、自動的に画像変換処理が始まります。</li>
-                <li>変換完了後、「ダウンロード」ボタンを押してください。</li>
-                <li>保存された <strong>.pptxファイル</strong> をGoogleドライブにアップロードします。</li>
-                <li>Googleドライブ上で右クリックし、「Googleスライドで開く」を選択すれば完了です。</li>
+                <li>PDFを選択すると、テキスト解析と画像変換処理が始まります。</li>
+                <li>「編集可能PPTXをダウンロード」ボタンを押してください。</li>
+                <li>生成されたファイルは、<strong>画像の上にテキストボックスが乗った状態</strong>になります。</li>
+                <li>テキストをクリックすれば編集可能です。不要なテキストは削除すると、下の画像（元の文字）が見えます。</li>
             </ol>
         </div>
 
@@ -134,7 +138,7 @@
 
     <!-- Footer -->
     <footer class="bg-gray-800 text-gray-400 py-6 text-center text-sm">
-        <p>Created with PDF.js & PptxGenJS. No server-side processing.</p>
+        <p>Created with PDF.js & PptxGenJS. High-fidelity text extraction enabled.</p>
     </footer>
 
     <script>
@@ -151,7 +155,7 @@
 
         // State
         let pdfDoc = null;
-        let slideImages = []; // Stores Data URLs of converted pages
+        let slideData = []; // Stores objects { background: dataURL, texts: [ {text, x, y, fontSize...} ] }
         let isProcessing = false;
 
         // Drag & Drop Handlers
@@ -180,7 +184,7 @@
             // Reset UI
             processingArea.classList.remove('hidden');
             previewGrid.innerHTML = '';
-            slideImages = [];
+            slideData = [];
             progressBar.style.width = '0%';
             downloadBtn.disabled = true;
             statusText.textContent = 'PDFを読み込み中...';
@@ -191,7 +195,7 @@
                 pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 
                 pageCountLabel.textContent = `${pdfDoc.numPages} ページ`;
-                renderPages();
+                await processPages();
 
             } catch (err) {
                 console.error(err);
@@ -200,17 +204,18 @@
             }
         }
 
-        // Render PDF Pages to Images
-        async function renderPages() {
+        // Process PDF Pages (Image + Text Extraction)
+        async function processPages() {
             const totalPages = pdfDoc.numPages;
 
             for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
                 try {
-                    statusText.textContent = `${pageNum} / ${totalPages} ページを変換中...`;
+                    statusText.textContent = `${pageNum} / ${totalPages} ページを解析中...`;
                     const page = await pdfDoc.getPage(pageNum);
                     
-                    // Set scale for high quality (2.0 is usually good for slides)
-                    const viewport = page.getViewport({ scale: 2.0 });
+                    // 1. Render Background Image (Standard Resolution)
+                    const scale = 2.0;
+                    const viewport = page.getViewport({ scale: scale });
                     
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -222,90 +227,67 @@
                         viewport: viewport
                     }).promise;
 
-                    // Convert to image
-                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                    slideImages.push({
-                        data: imgData,
-                        width: viewport.width,
-                        height: viewport.height,
-                        aspectRatio: viewport.width / viewport.height
+                    const bgImgData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    // 2. Extract Text Content
+                    // We need viewport at scale 1.0 for calculation to inches
+                    const viewportScale1 = page.getViewport({ scale: 1.0 });
+                    const textContent = await page.getTextContent();
+                    
+                    // Process Text Items
+                    const extractedTexts = processTextItems(textContent.items, viewportScale1);
+
+                    // Store Data
+                    slideData.push({
+                        pageNum: pageNum,
+                        width: viewportScale1.width,
+                        height: viewportScale1.height,
+                        background: bgImgData,
+                        texts: extractedTexts
                     });
 
                     // Update UI
-                    addPreviewImage(imgData, pageNum);
+                    addPreviewImage(bgImgData, pageNum);
                     const progress = (pageNum / totalPages) * 100;
                     progressBar.style.width = `${progress}%`;
 
                 } catch (err) {
-                    console.error(`Page ${pageNum} render error:`, err);
+                    console.error(`Page ${pageNum} process error:`, err);
                 }
             }
 
-            statusText.textContent = '変換完了！ダウンロードボタンを押してください。';
+            statusText.textContent = '解析完了！ダウンロードボタンを押してください。';
             downloadBtn.disabled = false;
             isProcessing = false;
         }
 
-        // Add Thumbnail to Grid
-        function addPreviewImage(imgData, num) {
-            const div = document.createElement('div');
-            div.className = 'relative group aspect-video bg-white shadow rounded overflow-hidden border border-gray-200';
-            div.innerHTML = `
-                <img src="${imgData}" class="w-full h-full object-contain">
-                <div class="absolute bottom-0 left-0 bg-black/50 text-white text-xs px-2 py-1">Page ${num}</div>
-            `;
-            previewGrid.appendChild(div);
-        }
+        // Helper: Convert PDF Text Items to PPTX-friendly format
+        function processTextItems(items, viewport) {
+            const processed = [];
+            
+            // Simple logic: treat each item as a text box
+            // Note: A robust implementation would merge items on the same line
+            // Here we use a simplified merging for contiguous text fragments
+            
+            let currentLine = null;
 
-        // Generate PPTX
-        downloadBtn.addEventListener('click', async () => {
-            if (slideImages.length === 0) return;
+            items.forEach(item => {
+                if (!item.str || item.str.trim() === '') return;
 
-            downloadBtn.disabled = true;
-            btnSpinner.classList.remove('hidden');
-            statusText.textContent = 'PowerPointファイルを生成中...';
-
-            try {
-                // Initialize PptxGenJS
-                let pres = new PptxGenJS();
+                // PDF coordinates transform
+                // item.transform is [scaleX, skewY, skewX, scaleY, x, y]
+                // PDF y starts from bottom, we need to flip it
+                const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
                 
-                // Metadata
-                pres.author = 'PDF to Slides Converter';
-                pres.company = 'GitHub App';
-                pres.title = 'Converted Presentation';
+                // Calculate position in points (approximate)
+                // item.transform[4] is x, item.transform[5] is y in PDF space
+                // We use the viewport-transformed coordinates
+                const x = tx[4];
+                const y = tx[5] - (item.height || item.transform[3]); // Adjust for bottom-up vs top-down
 
-                // Loop through images and add slides
-                slideImages.forEach((img, index) => {
-                    // Decide layout based on aspect ratio
-                    // Standard slide is 16:9 (10 x 5.625 inches)
-                    // We will fit the image to the slide (CONTAIN) or Stretch (COVER)
-                    // Here we use 'fit' to ensure nothing is cut off.
-                    
-                    const slide = pres.addSlide();
-                    
-                    // Add the image as the background or full size image
-                    slide.addImage({
-                        data: img.data,
-                        x: 0,
-                        y: 0,
-                        w: '100%',
-                        h: '100%',
-                        sizing: { type: 'contain', align: 'center' } 
-                    });
-                });
+                // Font size approx
+                // The item.transform[0] is roughly font size if not scaled otherwise
+                // We take height from the transform matrix scaleY
+                const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
 
-                // Save
-                await pres.writeFile({ fileName: "Converted_Slides.pptx" });
-                
-                statusText.textContent = 'ダウンロードが完了しました。';
-            } catch (err) {
-                console.error(err);
-                alert('ファイル生成中にエラーが発生しました。');
-            } finally {
-                downloadBtn.disabled = false;
-                btnSpinner.classList.add('hidden');
-            }
-        });
-    </script>
-</body>
-</html>
+                // Convert pixels to inches (PPTX uses inches by default, assuming 72 or 96 dpi
